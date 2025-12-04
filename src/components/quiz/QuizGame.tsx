@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { quizData, Question } from "@/data/quizData";
+import { Question, QuizData } from "@/data/quizData";
 import { ScoreBoard } from "./ScoreBoard";
 import { Timer } from "./Timer";
 import { QuestionGrid } from "./QuestionGrid";
@@ -11,12 +11,13 @@ import { cn } from "@/lib/utils";
 interface QuizGameProps {
   teamAName: string;
   teamBName: string;
+  quizData: QuizData;
   onGameOver: (teamAScore: number, teamBScore: number) => void;
 }
 
 type GamePhase = 'selecting' | 'answering' | 'passed' | 'result' | 'round-complete';
 
-export function QuizGame({ teamAName, teamBName, onGameOver }: QuizGameProps) {
+export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGameProps) {
   const [currentRound, setCurrentRound] = useState(0);
   const [teamAScore, setTeamAScore] = useState(0);
   const [teamBScore, setTeamBScore] = useState(0);
@@ -124,7 +125,7 @@ export function QuizGame({ teamAName, teamBName, onGameOver }: QuizGameProps) {
     } else if (gamePhase === 'passed') {
       setGamePhase('result');
     }
-  }, [gamePhase, round.round_type, currentTeam]);
+  }, [gamePhase, round.round_type, currentTeam, quizData.host_wrong_lines]);
 
   const nextQuestion = () => {
     setCurrentQuestion(null);
