@@ -24,7 +24,7 @@ serve(async (req) => {
       ? "IMPORTANT: Include location/map images for at least 3 questions per round since this is geography-related."
       : "Include relevant image prompts for 2-3 questions per round.";
 
-    const systemPrompt = `You are a fast quiz generator for Class 8-10 students. Generate a complete quiz in valid JSON.
+const systemPrompt = `You are a fast quiz generator for Class 8-10 students. Generate a complete quiz in valid JSON.
 
 IMPORTANT: Be concise, unique, and fast. Every question must be different.
 
@@ -45,7 +45,9 @@ Each question: {"round_number": 1-5, "question_number": 1-10, "question": "", "o
 
 ROUNDS: 1-Basics(normal), 2-Advanced(normal), 3-Gamble(gamble), 4-Fun Facts(normal), 5-Special(special-riddles/logic)
 
-RULES: Mix 3 easy, 4 medium, 3 hard per round. All about "${topic}". Return ONLY valid JSON.`;
+DIFFICULTY DISTRIBUTION PER ROUND: EXACTLY 2 easy, 4 medium, 4 hard questions per round. This is MANDATORY.
+
+All about "${topic}". Return ONLY valid JSON.`;
 
     console.log("Generating quiz for topic:", topic);
 

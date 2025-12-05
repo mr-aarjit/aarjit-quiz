@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GameIntro } from "@/components/quiz/GameIntro";
+import { SpinWheel } from "@/components/quiz/SpinWheel";
 import { QuizGame } from "@/components/quiz/QuizGame";
 import { GameOver } from "@/components/quiz/GameOver";
 import { QuizData } from "@/data/quizData";
@@ -7,7 +8,7 @@ import { preparedQuizData } from "@/data/preparedQuizData";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-type GameState = 'intro' | 'playing' | 'finished';
+type GameState = 'intro' | 'spinning' | 'playing' | 'finished';
 
 const Index = () => {
   const [gameState, setGameState] = useState<GameState>('intro');
@@ -15,6 +16,7 @@ const Index = () => {
   const [teamBName, setTeamBName] = useState("Team Beta");
   const [finalScores, setFinalScores] = useState({ teamA: 0, teamB: 0 });
   const [quizData, setQuizData] = useState<QuizData | null>(null);
+  const [startingRound, setStartingRound] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -23,7 +25,7 @@ const Index = () => {
     setTeamAName(teamA);
     setTeamBName(teamB);
     setQuizData(preparedQuizData);
-    setGameState('playing');
+    setGameState('spinning');
   };
 
   const handleStart = async (teamA: string, teamB: string, topic: string) => {
@@ -41,8 +43,8 @@ const Index = () => {
       if (data.error) throw new Error(data.error);
 
       setQuizData(data as QuizData);
-      setGameState('playing');
-      toast({ title: "Quiz Ready!", description: `50 questions about "${topic}"` });
+      setGameState('spinning');
+      toast({ title: "Quiz Ready!", description: `50 questions generated!` });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate quiz";
       setError(message);
@@ -50,6 +52,11 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSpinComplete = (selectedIndex: number) => {
+    setStartingRound(selectedIndex);
+    setGameState('playing');
   };
 
   const handleGameOver = (teamAScore: number, teamBScore: number) => {
@@ -61,6 +68,7 @@ const Index = () => {
     setGameState('intro');
     setQuizData(null);
     setFinalScores({ teamA: 0, teamB: 0 });
+    setStartingRound(0);
   };
 
   return (
@@ -73,11 +81,18 @@ const Index = () => {
           error={error}
         />
       )}
+      {gameState === 'spinning' && quizData && (
+        <SpinWheel
+          rounds={quizData.rounds.map(r => r.round_name)}
+          onSpinComplete={handleSpinComplete}
+        />
+      )}
       {gameState === 'playing' && quizData && (
         <QuizGame
           teamAName={teamAName}
           teamBName={teamBName}
           quizData={quizData}
+          startingRound={startingRound}
           onGameOver={handleGameOver}
         />
       )}
