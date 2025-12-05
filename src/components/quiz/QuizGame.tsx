@@ -15,7 +15,7 @@ interface QuizGameProps {
   onGameOver: (teamAScore: number, teamBScore: number) => void;
 }
 
-type GamePhase = 'selecting' | 'answering' | 'passed' | 'result' | 'round-complete';
+type GamePhase = 'selecting' | 'answering' | 'passed' | 'mass' | 'result' | 'round-complete';
 
 export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGameProps) {
   const [currentRound, setCurrentRound] = useState(0);
@@ -30,6 +30,7 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [gamblePenalty, setGamblePenalty] = useState({ A: 0, B: 0 });
   const [hostLine, setHostLine] = useState("");
+  const [hostingTeam, setHostingTeam] = useState<'A' | 'B'>('A');
 
   const round = quizData.rounds[currentRound];
   const maxQuestionsPerRound = 6;
@@ -49,6 +50,16 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
     setGamePhase('answering');
     setTimerRunning(true);
     setSelectedAnswer(null);
+    setHostingTeam(currentTeam);
+  };
+
+  const handlePass = () => {
+    setTimerRunning(false);
+    setHostLine(getRandomLine(quizData.host_wrong_lines));
+    setGamePhase('passed');
+    setCurrentTeam(prev => prev === 'A' ? 'B' : 'A');
+    setTimerRunning(true);
+    setSelectedAnswer(null);
   };
 
   const handleAnswer = (answer: string, isCorrect: boolean) => {
@@ -57,10 +68,14 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
     
     const isGamble = round.round_type === 'gamble';
     const isPass = gamePhase === 'passed';
+    const isMass = gamePhase === 'mass';
     
     let points = 0;
     if (isCorrect) {
-      if (isGamble) {
+      if (isMass) {
+        // Mass question - no points, just show answer
+        points = 0;
+      } else if (isGamble) {
         points = isPass ? 150 : 250;
       } else {
         points = isPass ? 50 : 100;
@@ -69,33 +84,41 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
     } else {
       if (isGamble) {
         points = -150;
-        // Apply time penalty for wrong gamble answers
-        if (!isPass) {
+        if (!isPass && !isMass) {
           setGamblePenalty(prev => ({
             ...prev,
             [currentTeam]: Math.min(prev[currentTeam] + 2, 10)
           }));
         }
       }
-      if (!isPass && !isGamble) {
+      
+      // If both teams got it wrong in normal rounds, go to mass
+      if (!isPass && !isMass && !isGamble) {
         setHostLine(getRandomLine(quizData.host_wrong_lines));
+        setGamePhase('passed');
+        setCurrentTeam(prev => prev === 'A' ? 'B' : 'A');
+        setTimerRunning(true);
+        setSelectedAnswer(null);
+        return;
+      }
+      
+      // If passed team also got it wrong, go to mass (audience)
+      if (isPass && !isMass && !isGamble) {
+        setHostLine("Both teams missed! Let's ask the audience!");
+        setGamePhase('mass');
+        setTimerRunning(true);
+        setSelectedAnswer(null);
+        return;
       }
     }
 
-    // Update scores
-    if (currentTeam === 'A') {
-      setTeamAScore(prev => Math.max(0, prev + points));
-    } else {
-      setTeamBScore(prev => Math.max(0, prev + points));
-    }
-
-    // Handle pass logic for non-gamble rounds
-    if (!isCorrect && !isPass && !isGamble) {
-      setGamePhase('passed');
-      setCurrentTeam(prev => prev === 'A' ? 'B' : 'A');
-      setTimerRunning(true);
-      setSelectedAnswer(null);
-      return;
+    // Update scores (not for mass)
+    if (!isMass) {
+      if (currentTeam === 'A') {
+        setTeamAScore(prev => Math.max(0, prev + points));
+      } else {
+        setTeamBScore(prev => Math.max(0, prev + points));
+      }
     }
 
     setGamePhase('result');
@@ -108,7 +131,6 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
       const isGamble = round.round_type === 'gamble';
       
       if (isGamble) {
-        // Gamble timeout = wrong answer
         if (currentTeam === 'A') {
           setTeamAScore(prev => Math.max(0, prev - 150));
         } else {
@@ -116,13 +138,18 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
         }
         setGamePhase('result');
       } else {
-        // Pass to opponent
         setHostLine(getRandomLine(quizData.host_wrong_lines));
         setGamePhase('passed');
         setCurrentTeam(prev => prev === 'A' ? 'B' : 'A');
         setTimerRunning(true);
       }
     } else if (gamePhase === 'passed') {
+      // Both teams timed out, go to mass
+      setHostLine("Time's up for both teams! Audience, it's your turn!");
+      setGamePhase('mass');
+      setTimerRunning(true);
+    } else if (gamePhase === 'mass') {
+      // Mass timeout, show result
       setGamePhase('result');
     }
   }, [gamePhase, round.round_type, currentTeam, quizData.host_wrong_lines]);
@@ -132,8 +159,7 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
     setSelectedAnswer(null);
     setHostLine("");
     
-    // Alternate hosting team
-    setCurrentTeam(prev => prev === 'A' ? 'B' : 'A');
+    setCurrentTeam(hostingTeam === 'A' ? 'B' : 'A');
 
     if (questionsSelectedThisRound >= maxQuestionsPerRound) {
       setGamePhase('round-complete');
@@ -159,7 +185,9 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
     
     const isGamble = round.round_type === 'gamble';
     const isPass = gamePhase === 'passed';
+    const isMass = gamePhase === 'mass';
     
+    if (isMass) return 10;
     if (isPass) return currentQuestion.time_limit_pass;
     
     if (isGamble) {
@@ -171,12 +199,12 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <h1 className="font-display text-2xl font-bold text-gradient">
+    <div className="h-screen bg-background p-3 md:p-4 flex flex-col overflow-hidden">
+      <div className="max-w-5xl mx-auto w-full flex flex-col h-full">
+        {/* Header - Compact */}
+        <header className="mb-2 flex-shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="font-display text-lg font-bold text-gradient truncate">
               {quizData.game_title}
             </h1>
             <ScoreBoard
@@ -189,7 +217,7 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
           </div>
         </header>
 
-        {/* Round Header */}
+        {/* Round Header - Compact */}
         <RoundHeader
           roundNumber={currentRound + 1}
           roundName={round.round_name}
@@ -199,19 +227,19 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
           maxQuestions={maxQuestionsPerRound}
         />
 
-        {/* Main Content */}
-        <main className="relative">
+        {/* Main Content - Flex grow */}
+        <main className="flex-1 min-h-0 overflow-auto py-2">
           {/* Selection Phase */}
           {gamePhase === 'selecting' && (
             <div className="text-center">
-              <p className="text-lg text-muted-foreground mb-6">
+              <p className="text-sm text-muted-foreground mb-3">
                 <span className={cn(
                   "font-bold",
                   currentTeam === 'A' ? "text-teamA" : "text-teamB"
                 )}>
                   {currentTeam === 'A' ? teamAName : teamBName}
                 </span>
-                , select a question number
+                , select a question
               </p>
               <QuestionGrid
                 questions={round.question_grid}
@@ -224,9 +252,9 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
             </div>
           )}
 
-          {/* Answering Phase */}
-          {(gamePhase === 'answering' || gamePhase === 'passed') && currentQuestion && (
-            <div className="space-y-8">
+          {/* Answering/Passed/Mass Phase */}
+          {(gamePhase === 'answering' || gamePhase === 'passed' || gamePhase === 'mass') && currentQuestion && (
+            <div className="space-y-3">
               <div className="flex justify-center">
                 <Timer
                   seconds={getTimerSeconds()}
@@ -235,32 +263,41 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
                 />
               </div>
               
-              <p className="text-center text-lg">
-                <span className={cn(
-                  "font-bold",
-                  currentTeam === 'A' ? "text-teamA" : "text-teamB"
-                )}>
-                  {currentTeam === 'A' ? teamAName : teamBName}
-                </span>
-                {gamePhase === 'passed' ? " — Steal opportunity!" : " is answering..."}
+              <p className="text-center text-sm">
+                {gamePhase === 'mass' ? (
+                  <span className="font-bold text-primary animate-pulse">🎤 AUDIENCE — Answer now!</span>
+                ) : (
+                  <>
+                    <span className={cn(
+                      "font-bold",
+                      currentTeam === 'A' ? "text-teamA" : "text-teamB"
+                    )}>
+                      {currentTeam === 'A' ? teamAName : teamBName}
+                    </span>
+                    {gamePhase === 'passed' ? " — Steal opportunity!" : " is answering..."}
+                  </>
+                )}
               </p>
               
               <QuestionDisplay
                 question={currentQuestion}
                 onAnswer={handleAnswer}
+                onPass={handlePass}
                 isPassedQuestion={gamePhase === 'passed'}
+                isMassQuestion={gamePhase === 'mass'}
                 showResult={false}
                 selectedAnswer={selectedAnswer}
+                canPass={gamePhase === 'answering' && round.round_type !== 'gamble'}
               />
             </div>
           )}
 
           {/* Result Phase */}
           {gamePhase === 'result' && currentQuestion && (
-            <div className="space-y-8">
+            <div className="space-y-3">
               {hostLine && (
-                <div className="text-center p-4 bg-card rounded-xl">
-                  <p className="text-xl font-medium text-foreground italic">
+                <div className="text-center p-2 bg-card rounded-lg">
+                  <p className="text-sm font-medium text-foreground italic">
                     "{hostLine}"
                   </p>
                 </div>
@@ -274,11 +311,11 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
                 selectedAnswer={selectedAnswer}
               />
               
-              <div className="flex justify-center">
+              <div className="flex justify-center pt-2">
                 <Button
                   onClick={nextQuestion}
-                  size="lg"
-                  className="font-display font-bold px-8"
+                  size="sm"
+                  className="font-display font-bold px-6"
                 >
                   {questionsSelectedThisRound >= maxQuestionsPerRound ? "Complete Round" : "Next Question"}
                 </Button>
@@ -288,33 +325,28 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
 
           {/* Round Complete */}
           {gamePhase === 'round-complete' && (
-            <div className="text-center space-y-8 py-12">
-              <div className="text-6xl animate-float">🎊</div>
-              <h2 className="font-display text-3xl font-bold text-foreground">
+            <div className="text-center space-y-4 py-4">
+              <div className="text-4xl animate-float">🎊</div>
+              <h2 className="font-display text-2xl font-bold text-foreground">
                 Round {currentRound + 1} Complete!
               </h2>
-              <p className="text-xl text-muted-foreground">
-                {currentRound < quizData.rounds.length - 1 
-                  ? `Get ready for ${quizData.rounds[currentRound + 1].round_name}!`
-                  : "Final scores are in!"}
-              </p>
               
-              <div className="flex justify-center gap-8">
-                <div className="bg-card rounded-xl p-6 min-w-[140px]">
-                  <p className="text-teamA font-display font-bold text-lg">{teamAName}</p>
-                  <p className="font-display text-4xl font-black text-foreground">{teamAScore}</p>
+              <div className="flex justify-center gap-4">
+                <div className="bg-card rounded-lg p-3 min-w-[100px]">
+                  <p className="text-teamA font-display font-bold text-sm">{teamAName}</p>
+                  <p className="font-display text-2xl font-black text-foreground">{teamAScore}</p>
                 </div>
-                <div className="bg-card rounded-xl p-6 min-w-[140px]">
-                  <p className="text-teamB font-display font-bold text-lg">{teamBName}</p>
-                  <p className="font-display text-4xl font-black text-foreground">{teamBScore}</p>
+                <div className="bg-card rounded-lg p-3 min-w-[100px]">
+                  <p className="text-teamB font-display font-bold text-sm">{teamBName}</p>
+                  <p className="font-display text-2xl font-black text-foreground">{teamBScore}</p>
                 </div>
               </div>
               
               <Button
                 onClick={nextRound}
-                size="lg"
+                size="sm"
                 className={cn(
-                  "font-display font-bold text-xl px-12 py-6",
+                  "font-display font-bold px-8 py-4",
                   currentRound < quizData.rounds.length - 1 
                     ? "bg-gradient-to-r from-primary to-secondary" 
                     : "bg-gradient-to-r from-gamble to-destructive"
@@ -326,8 +358,8 @@ export function QuizGame({ teamAName, teamBName, quizData, onGameOver }: QuizGam
           )}
         </main>
 
-        {/* Footer */}
-        <footer className="mt-12 text-center">
+        {/* Footer - Compact */}
+        <footer className="text-center flex-shrink-0 py-1">
           <p className="text-xs text-muted-foreground opacity-50">
             {quizData.creator_taglines[0]}
           </p>

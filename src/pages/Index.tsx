@@ -3,6 +3,7 @@ import { GameIntro } from "@/components/quiz/GameIntro";
 import { QuizGame } from "@/components/quiz/QuizGame";
 import { GameOver } from "@/components/quiz/GameOver";
 import { QuizData } from "@/data/quizData";
+import { preparedQuizData } from "@/data/preparedQuizData";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -18,6 +19,13 @@ const Index = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const handleStartPrepared = (teamA: string, teamB: string) => {
+    setTeamAName(teamA);
+    setTeamBName(teamB);
+    setQuizData(preparedQuizData);
+    setGameState('playing');
+  };
+
   const handleStart = async (teamA: string, teamB: string, topic: string) => {
     setTeamAName(teamA);
     setTeamBName(teamB);
@@ -29,29 +37,16 @@ const Index = () => {
         body: { topic }
       });
 
-      if (fnError) {
-        throw new Error(fnError.message);
-      }
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      if (fnError) throw new Error(fnError.message);
+      if (data.error) throw new Error(data.error);
 
       setQuizData(data as QuizData);
       setGameState('playing');
-      
-      toast({
-        title: "Quiz Generated!",
-        description: `50 unique questions about "${topic}" are ready!`,
-      });
+      toast({ title: "Quiz Ready!", description: `50 questions about "${topic}"` });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to generate quiz";
       setError(message);
-      toast({
-        title: "Generation Failed",
-        description: message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -72,7 +67,8 @@ const Index = () => {
     <>
       {gameState === 'intro' && (
         <GameIntro 
-          onStart={handleStart} 
+          onStart={handleStart}
+          onStartPrepared={handleStartPrepared}
           isLoading={isLoading}
           error={error}
         />

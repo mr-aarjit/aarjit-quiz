@@ -18,61 +18,36 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are a quiz generator for a classroom competition for Class 8-10 students. Generate a complete quiz dataset in valid JSON format.
+    // Check if topic is geography-related for location images
+    const isGeography = /geography|country|countries|capital|continent|ocean|river|mountain|city|map|world|nation|place|location/i.test(topic);
+    const imageInstruction = isGeography 
+      ? "IMPORTANT: Include location/map images for at least 3 questions per round since this is geography-related."
+      : "Include relevant image prompts for 2-3 questions per round.";
 
-IMPORTANT: Generate unique, diverse questions every time. Never repeat questions. Use creativity and variety.
+    const systemPrompt = `You are a fast quiz generator for Class 8-10 students. Generate a complete quiz in valid JSON.
 
-The quiz must have EXACTLY this structure:
+IMPORTANT: Be concise, unique, and fast. Every question must be different.
+
+Output this EXACT JSON structure:
 {
-  "game_title": "Ultimate Quiz: [Topic]",
-  "intro_lines": [5 motivational lines about the topic],
-  "host_correct_lines": [5 congratulatory phrases],
-  "host_wrong_lines": [5 encouraging phrases for wrong answers],
-  "creator_taglines": [4 taglines crediting "Aarjit"],
-  "rounds": [
-    {
-      "round_name": "Round Name",
-      "round_type": "normal" | "gamble" | "special",
-      "rules_summary": "Brief rules",
-      "question_grid": [1,2,3,4,5,6,7,8,9,10],
-      "questions": [array of 10 questions]
-    }
-  ],
-  "ending_message": "Closing message"
+  "game_title": "Ultimate Quiz: ${topic}",
+  "intro_lines": ["line1", "line2", "line3", "line4", "line5"],
+  "host_correct_lines": ["line1", "line2", "line3", "line4", "line5"],
+  "host_wrong_lines": ["line1", "line2", "line3", "line4", "line5"],
+  "creator_taglines": ["Designed by Aarjit", "Aarjit's Quiz Engine", "Created by Aarjit", "Aarjit's Masterpiece"],
+  "ending_message": "Thanks for playing!",
+  "rounds": [5 rounds with 10 questions each]
 }
 
-Each question MUST have:
-{
-  "round_number": number (1-5),
-  "question_number": number (1-10),
-  "question": "Question text",
-  "options": ["A", "B", "C", "D"],
-  "answer": "Correct option (must match exactly one option)",
-  "explanation": "Simple explanation for students",
-  "difficulty": "easy" | "medium" | "hard",
-  "image": "AI image prompt or empty string",
-  "time_limit_host": 30,
-  "time_limit_pass": 10,
-  "used": false,
-  "cool_fact": "Interesting fact related to the answer"
-}
+Each round: {"round_name": "", "round_type": "normal|gamble|special", "rules_summary": "", "question_grid": [1-10], "questions": [10 questions]}
 
-ROUNDS MUST BE:
-1. Round 1: "${topic} Basics" (round_type: "normal") - Easy/medium questions
-2. Round 2: "${topic} Advanced" (round_type: "normal") - Medium questions  
-3. Round 3: "${topic} Gamble" (round_type: "gamble") - Mixed difficulty, risky!
-4. Round 4: "${topic} Extra Bits" (round_type: "normal") - Fun facts and trivia
-5. Round 5: "${topic} Special" (round_type: "special") - Riddles, logic, visual questions
+Each question: {"round_number": 1-5, "question_number": 1-10, "question": "", "options": ["A","B","C","D"], "answer": "exact match to one option", "explanation": "brief", "difficulty": "easy|medium|hard", "image": "${imageInstruction}", "time_limit_host": 30, "time_limit_pass": 10, "used": false, "cool_fact": "short fact"}
 
-RULES:
-- Questions MUST be appropriate for Class 8-10 students
-- Mix difficulties: 3 easy, 4 medium, 3 hard per round
-- At least 2-3 questions per round should have "image" field with AI prompt
-- All questions MUST be about "${topic}"
-- Make questions interesting, educational, and competitive
-- Ensure variety in question types and topics within the theme
+ROUNDS: 1-Basics(normal), 2-Advanced(normal), 3-Gamble(gamble), 4-Fun Facts(normal), 5-Special(special-riddles/logic)
 
-Return ONLY valid JSON, no markdown formatting, no code blocks.`;
+RULES: Mix 3 easy, 4 medium, 3 hard per round. All about "${topic}". Return ONLY valid JSON.`;
+
+    console.log("Generating quiz for topic:", topic);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -84,27 +59,28 @@ Return ONLY valid JSON, no markdown formatting, no code blocks.`;
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a complete quiz about: ${topic}. Make sure all 5 rounds have 10 unique questions each. Be creative and educational!` }
+          { role: "user", content: `Generate quiz about: ${topic}. Be fast and creative!` }
         ],
       }),
     });
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
+      const status = response.status;
+      console.error("AI gateway error status:", status);
+      
+      if (status === 429) {
+        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }), {
+      if (status === 402) {
+        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`AI gateway error: ${status}`);
     }
 
     const data = await response.json();
@@ -114,25 +90,28 @@ Return ONLY valid JSON, no markdown formatting, no code blocks.`;
       throw new Error("No content received from AI");
     }
 
-    // Clean the response - remove any markdown formatting
+    console.log("Received AI response, parsing...");
+
+    // Clean the response
     let cleanedContent = content
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();
 
-    // Parse and validate the JSON
     const quizData = JSON.parse(cleanedContent);
     
-    // Validate structure
+    // Quick validation
     if (!quizData.rounds || quizData.rounds.length !== 5) {
-      throw new Error("Invalid quiz structure: must have exactly 5 rounds");
+      throw new Error("Invalid quiz: must have 5 rounds");
     }
 
     for (const round of quizData.rounds) {
       if (!round.questions || round.questions.length !== 10) {
-        throw new Error(`Invalid round: ${round.round_name} must have exactly 10 questions`);
+        throw new Error(`Round ${round.round_name} must have 10 questions`);
       }
     }
+
+    console.log("Quiz generated successfully!");
 
     return new Response(JSON.stringify(quizData), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
