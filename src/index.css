@@ -105,6 +105,10 @@
     background-clip: text;
   }
   
+  .bg-gradient-radial {
+    background: radial-gradient(circle at center, var(--tw-gradient-stops));
+  }
+  
   .glow-primary {
     box-shadow: var(--shadow-glow-primary);
   }
