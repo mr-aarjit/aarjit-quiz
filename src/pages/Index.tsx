@@ -1,61 +1,90 @@
-import { useState } from "react";
-import { GameIntro } from "@/components/quiz/GameIntro";
+import { useState, useEffect } from "react";
+import { MultiplayerIntro } from "@/components/quiz/MultiplayerIntro";
+import { JoinGame } from "@/components/quiz/JoinGame";
+import { MultiplayerLobby } from "@/components/quiz/MultiplayerLobby";
 import { SpinWheel } from "@/components/quiz/SpinWheel";
-import { QuizGame } from "@/components/quiz/QuizGame";
+import { MultiplayerQuizGame } from "@/components/quiz/MultiplayerQuizGame";
 import { GameOver } from "@/components/quiz/GameOver";
-import { QuizData } from "@/data/quizData";
-import { preparedQuizData } from "@/data/preparedQuizData";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useMultiplayerGame } from "@/hooks/useMultiplayerGame";
 
-type GameState = 'intro' | 'spinning' | 'playing' | 'finished';
+type GameState = 'intro' | 'joining' | 'lobby' | 'spinning' | 'playing' | 'finished';
 
 const Index = () => {
   const [gameState, setGameState] = useState<GameState>('intro');
   const [teamAName, setTeamAName] = useState("Team Alpha");
   const [teamBName, setTeamBName] = useState("Team Beta");
   const [finalScores, setFinalScores] = useState({ teamA: 0, teamB: 0 });
-  const [quizData, setQuizData] = useState<QuizData | null>(null);
-  const [startingRound, setStartingRound] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const [roomInfo, setRoomInfo] = useState<{ roomCode: string; shareUrl: string } | null>(null);
+  const [initialRoomCode, setInitialRoomCode] = useState("");
 
-  const handleStartPrepared = (teamA: string, teamB: string) => {
+  const {
+    session,
+    isHost,
+    isConnected,
+    isLoading,
+    error,
+    createGame,
+    joinGame,
+    updateGameState,
+    leaveGame,
+    hasOpponent
+  } = useMultiplayerGame();
+
+  // Check URL for room code on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomCode = params.get('room');
+    if (roomCode) {
+      setInitialRoomCode(roomCode);
+      setGameState('joining');
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  // Watch session for game start
+  useEffect(() => {
+    if (session && session.game_phase === 'spinning' && gameState === 'lobby') {
+      setGameState('spinning');
+    }
+    if (session && session.game_phase === 'playing' && gameState !== 'playing') {
+      setGameState('playing');
+    }
+  }, [session, gameState]);
+
+  const handleCreateGame = async (teamA: string, teamB: string, topic: string, usePrepared: boolean) => {
     setTeamAName(teamA);
     setTeamBName(teamB);
-    setQuizData(preparedQuizData);
-    setGameState('spinning');
+    
+    const result = await createGame(teamA, teamB, topic, usePrepared);
+    if (result) {
+      setRoomInfo(result);
+      setGameState('lobby');
+    }
   };
 
-  const handleStart = async (teamA: string, teamB: string, topic: string) => {
-    setTeamAName(teamA);
-    setTeamBName(teamB);
-    setIsLoading(true);
-    setError(null);
+  const handleJoinGame = async (roomCode: string) => {
+    const success = await joinGame(roomCode);
+    if (success) {
+      setGameState('lobby');
+    }
+    return success;
+  };
 
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke('generate-quiz', {
-        body: { topic }
-      });
-
-      if (fnError) throw new Error(fnError.message);
-      if (data.error) throw new Error(data.error);
-
-      setQuizData(data as QuizData);
+  const handleStartGame = () => {
+    if (session) {
+      updateGameState({ game_phase: 'spinning' });
       setGameState('spinning');
-      toast({ title: "Quiz Ready!", description: `50 questions generated!` });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to generate quiz";
-      setError(message);
-      toast({ title: "Error", description: message, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleSpinComplete = (selectedIndex: number) => {
-    setStartingRound(selectedIndex);
+    if (session && isHost) {
+      updateGameState({ 
+        current_round: selectedIndex,
+        game_phase: 'selecting'
+      });
+    }
     setGameState('playing');
   };
 
@@ -64,38 +93,70 @@ const Index = () => {
     setGameState('finished');
   };
 
-  const handleRestart = () => {
+  const handleRestart = async () => {
+    await leaveGame();
     setGameState('intro');
-    setQuizData(null);
+    setRoomInfo(null);
     setFinalScores({ teamA: 0, teamB: 0 });
-    setStartingRound(0);
+  };
+
+  const handleLeave = async () => {
+    await leaveGame();
+    setGameState('intro');
+    setRoomInfo(null);
   };
 
   return (
     <>
       {gameState === 'intro' && (
-        <GameIntro 
-          onStart={handleStart}
-          onStartPrepared={handleStartPrepared}
+        <MultiplayerIntro
+          onCreateGame={handleCreateGame}
+          onJoinGame={() => setGameState('joining')}
           isLoading={isLoading}
           error={error}
         />
       )}
-      {gameState === 'spinning' && quizData && (
+
+      {gameState === 'joining' && (
+        <JoinGame
+          onJoin={handleJoinGame}
+          onBack={() => setGameState('intro')}
+          isLoading={isLoading}
+          error={error}
+          initialCode={initialRoomCode}
+        />
+      )}
+
+      {gameState === 'lobby' && session && roomInfo && (
+        <MultiplayerLobby
+          roomCode={roomInfo.roomCode}
+          shareUrl={roomInfo.shareUrl}
+          isHost={isHost}
+          hasOpponent={hasOpponent}
+          isConnected={isConnected}
+          onStartGame={handleStartGame}
+          onLeave={handleLeave}
+        />
+      )}
+
+      {gameState === 'spinning' && session && (
         <SpinWheel
-          rounds={quizData.rounds.map(r => r.round_name)}
+          rounds={session.questions.rounds.map(r => r.round_name)}
           onSpinComplete={handleSpinComplete}
         />
       )}
-      {gameState === 'playing' && quizData && (
-        <QuizGame
+
+      {gameState === 'playing' && session && (
+        <MultiplayerQuizGame
+          session={session}
+          isHost={isHost}
           teamAName={teamAName}
           teamBName={teamBName}
-          quizData={quizData}
-          startingRound={startingRound}
+          onUpdateState={updateGameState}
           onGameOver={handleGameOver}
         />
       )}
+
       {gameState === 'finished' && (
         <GameOver
           teamAName={teamAName}
