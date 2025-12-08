@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Question, QuizData } from "@/data/quizData";
 import { ScoreBoard } from "./ScoreBoard";
 import { Timer } from "./Timer";
@@ -8,6 +8,8 @@ import { RoundHeader } from "./RoundHeader";
 import { AnswerFlash } from "./AnswerFlash";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useSoundEffects } from "@/hooks/useSoundEffects";
+import { Volume2, VolumeX } from "lucide-react";
 
 interface QuizGameProps {
   teamAName: string;
@@ -35,6 +37,15 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
   const [hostingTeam, setHostingTeam] = useState<'A' | 'B'>('A');
   const [flashResult, setFlashResult] = useState<boolean | null>(null);
   const [completedRounds, setCompletedRounds] = useState<number[]>([]);
+  const [musicOn, setMusicOn] = useState(true);
+  
+  const { playSound, startBgMusic, stopBgMusic, toggleBgMusic } = useSoundEffects();
+  
+  // Start background music on mount
+  useEffect(() => {
+    startBgMusic();
+    return () => stopBgMusic();
+  }, [startBgMusic, stopBgMusic]);
 
   const round = quizData.rounds[currentRound];
   const maxQuestionsPerRound = 6;
@@ -45,6 +56,7 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
     const question = round.questions.find(q => q.question_number === questionNum);
     if (!question) return;
 
+    playSound('select');
     setCurrentQuestion(question);
     setUsedQuestions(prev => ({
       ...prev,
@@ -58,8 +70,8 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
   };
 
   const handlePass = () => {
+    playSound('pass');
     setTimerRunning(false);
-    setHostLine(getRandomLine(quizData.host_wrong_lines));
     setGamePhase('passed');
     setCurrentTeam(prev => prev === 'A' ? 'B' : 'A');
     setTimerRunning(true);
@@ -118,6 +130,7 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
       }
     }
 
+    playSound(isCorrect ? 'correct' : 'wrong');
     setFlashResult(isCorrect);
     setGamePhase('flash');
   };
@@ -179,11 +192,17 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
     setCurrentTeam(hostingTeam === 'A' ? 'B' : 'A');
 
     if (questionsSelectedThisRound >= maxQuestionsPerRound) {
+      playSound('roundComplete');
       setCompletedRounds(prev => [...prev, currentRound]);
       setGamePhase('round-complete');
     } else {
       setGamePhase('selecting');
     }
+  };
+  
+  const handleMusicToggle = () => {
+    toggleBgMusic();
+    setMusicOn(!musicOn);
   };
 
   const selectRound = (roundIndex: number) => {
@@ -217,9 +236,22 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
         {/* Header */}
         <header className="mb-2 flex-shrink-0">
           <div className="flex items-center justify-between gap-2">
-            <h1 className="font-display text-lg font-bold text-gradient truncate">
-              {quizData.game_title}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-lg font-bold text-gradient truncate">
+                {quizData.game_title}
+              </h1>
+              <button
+                onClick={handleMusicToggle}
+                className="p-1.5 rounded-full hover:bg-muted/50 transition-colors"
+                aria-label="Toggle music"
+              >
+                {musicOn ? (
+                  <Volume2 className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <VolumeX className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+            </div>
             <ScoreBoard
               teamAScore={teamAScore}
               teamBScore={teamBScore}
@@ -266,19 +298,26 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
           {(gamePhase === 'answering' || gamePhase === 'passed' || gamePhase === 'mass') && currentQuestion && (
             <div className="space-y-3">
               <div className="flex justify-center">
-                <Timer seconds={gamePhase === 'mass' ? 10 : gamePhase === 'passed' ? currentQuestion.time_limit_pass : currentQuestion.time_limit_host - (round.round_type === 'gamble' ? gamblePenalty[currentTeam] : 0)} isRunning={timerRunning} onTimeUp={handleTimeUp} />
+                <Timer 
+                  seconds={gamePhase === 'mass' ? 10 : gamePhase === 'passed' ? 30 : 45 - (round.round_type === 'gamble' ? gamblePenalty[currentTeam] : 0)} 
+                  isRunning={timerRunning} 
+                  onTimeUp={handleTimeUp} 
+                />
               </div>
               
               <p className="text-center text-sm">
                 {gamePhase === 'mass' ? (
                   <span className="font-bold text-primary animate-pulse">🎤 AUDIENCE — Answer now!</span>
-                ) : (
-                  <>
-                    <span className={cn("font-bold", currentTeam === 'A' ? "text-teamA" : "text-teamB")}>
-                      {currentTeam === 'A' ? teamAName : teamBName}
+                ) : gamePhase === 'passed' ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-secondary/20 text-secondary font-bold animate-pulse">
+                      ➡️ Passed to {currentTeam === 'A' ? teamAName : teamBName}
                     </span>
-                    {gamePhase === 'passed' ? " — Steal!" : ""}
-                  </>
+                  </span>
+                ) : (
+                  <span className={cn("font-bold", currentTeam === 'A' ? "text-teamA" : "text-teamB")}>
+                    {currentTeam === 'A' ? teamAName : teamBName}
+                  </span>
                 )}
               </p>
               
@@ -290,7 +329,7 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
                 isMassQuestion={gamePhase === 'mass'}
                 showResult={false}
                 selectedAnswer={selectedAnswer}
-                canPass={gamePhase === 'answering' && round.round_type !== 'gamble'}
+                canPass={gamePhase === 'answering'}
               />
             </div>
           )}
