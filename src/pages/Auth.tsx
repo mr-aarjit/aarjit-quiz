@@ -18,7 +18,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   
-  const { signIn, signUp, isLoading, isAuthenticated } = useAuth();
+  const { signIn, signUp, signInAsGuest, isLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if already authenticated
@@ -108,6 +108,27 @@ const Auth = () => {
               {isLoading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
             </Button>
           </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={async () => {
+              const { error } = await signInAsGuest();
+              if (!error) navigate("/");
+            }}
+            disabled={isLoading}
+          >
+            Play as Guest
+          </Button>
 
           <div className="mt-6 text-center">
             <button
