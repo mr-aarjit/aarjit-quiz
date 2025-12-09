@@ -87,6 +87,30 @@ export function useAuth() {
     return { data };
   };
 
+  const signInAsGuest = async () => {
+    setIsLoading(true);
+    
+    const { data, error } = await supabase.auth.signInAnonymously();
+
+    setIsLoading(false);
+
+    if (error) {
+      toast({
+        title: "Guest Sign In Error",
+        description: error.message,
+        variant: "destructive"
+      });
+      return { error };
+    }
+
+    toast({
+      title: "Welcome, Guest!",
+      description: "You're playing as a guest. Create an account to save your progress."
+    });
+
+    return { data };
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     
@@ -112,8 +136,10 @@ export function useAuth() {
     session,
     isLoading,
     isAuthenticated: !!user,
+    isGuest: user?.is_anonymous ?? false,
     signUp,
     signIn,
+    signInAsGuest,
     signOut
   };
 }
