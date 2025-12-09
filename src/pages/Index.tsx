@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { MultiplayerIntro } from "@/components/quiz/MultiplayerIntro";
 import { JoinGame } from "@/components/quiz/JoinGame";
 import { MultiplayerLobby } from "@/components/quiz/MultiplayerLobby";
@@ -6,6 +7,8 @@ import { SpinWheel } from "@/components/quiz/SpinWheel";
 import { MultiplayerQuizGame } from "@/components/quiz/MultiplayerQuizGame";
 import { GameOver } from "@/components/quiz/GameOver";
 import { useMultiplayerGame } from "@/hooks/useMultiplayerGame";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 
 type GameState = 'intro' | 'joining' | 'lobby' | 'spinning' | 'playing' | 'finished';
 
@@ -16,6 +19,9 @@ const Index = () => {
   const [finalScores, setFinalScores] = useState({ teamA: 0, teamB: 0 });
   const [roomInfo, setRoomInfo] = useState<{ roomCode: string; shareUrl: string } | null>(null);
   const [initialRoomCode, setInitialRoomCode] = useState("");
+
+  const { isAuthenticated, isLoading: authLoading, user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const {
     session,
@@ -29,6 +35,13 @@ const Index = () => {
     leaveGame,
     hasOpponent
   } = useMultiplayerGame();
+
+  // Redirect to auth if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate("/auth");
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   // Check URL for room code on mount
   useEffect(() => {
@@ -106,8 +119,30 @@ const Index = () => {
     setRoomInfo(null);
   };
 
+  // Loading state while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-primary/10">
+        <div className="text-xl text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
-    <>
+    <div className="relative">
+      {/* User info header */}
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-3">
+        <span className="text-sm text-muted-foreground">{user?.email}</span>
+        <Button variant="outline" size="sm" onClick={signOut}>
+          Sign Out
+        </Button>
+      </div>
+
       {gameState === 'intro' && (
         <MultiplayerIntro
           onCreateGame={handleCreateGame}
@@ -166,7 +201,7 @@ const Index = () => {
           onRestart={handleRestart}
         />
       )}
-    </>
+    </div>
   );
 };
 
