@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { QuizData } from '@/data/quizData';
 import { preparedQuizData } from '@/data/preparedQuizData';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface GameSession {
   id: string;
@@ -28,24 +29,17 @@ const generateRoomCode = () => {
   return Math.random().toString(36).substring(2, 6).toUpperCase();
 };
 
-const generatePlayerId = () => {
-  return Math.random().toString(36).substring(2, 12);
-};
-
 export function useMultiplayerGame() {
   const [session, setSession] = useState<GameSession | null>(null);
-  const [playerId] = useState(() => {
-    const stored = localStorage.getItem('quiz_player_id');
-    if (stored) return stored;
-    const newId = generatePlayerId();
-    localStorage.setItem('quiz_player_id', newId);
-    return newId;
-  });
   const [isHost, setIsHost] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user, isAuthenticated } = useAuth();
+
+  // Get user ID from authenticated session
+  const userId = user?.id;
 
   // Subscribe to real-time updates
   useEffect(() => {
@@ -94,6 +88,12 @@ export function useMultiplayerGame() {
     topic: string,
     usePrepared: boolean = false
   ) => {
+    if (!isAuthenticated || !userId) {
+      setError("You must be logged in to create a game");
+      toast({ title: "Error", description: "Please sign in first", variant: "destructive" });
+      return null;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -118,7 +118,7 @@ export function useMultiplayerGame() {
         .from('game_sessions')
         .insert({
           room_code: roomCode,
-          host_id: playerId,
+          host_id: userId,
           topic: usePrepared ? 'Computer & Tech Trends' : topic,
           questions: quizData as any,
           game_phase: 'waiting'
@@ -152,10 +152,16 @@ export function useMultiplayerGame() {
     } finally {
       setIsLoading(false);
     }
-  }, [playerId, toast]);
+  }, [userId, isAuthenticated, toast]);
 
   // Join an existing game
   const joinGame = useCallback(async (roomCode: string) => {
+    if (!isAuthenticated || !userId) {
+      setError("You must be logged in to join a game");
+      toast({ title: "Error", description: "Please sign in first", variant: "destructive" });
+      return false;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -170,12 +176,12 @@ export function useMultiplayerGame() {
         throw new Error('Game not found. Check the room code.');
       }
 
-      if (sessionData.player_id && sessionData.player_id !== playerId && sessionData.host_id !== playerId) {
+      if (sessionData.player_id && sessionData.player_id !== userId && sessionData.host_id !== userId) {
         throw new Error('Game is full.');
       }
 
       // If we're the host, just reconnect
-      if (sessionData.host_id === playerId) {
+      if (sessionData.host_id === userId) {
         setSession({
           ...sessionData,
           questions: sessionData.questions as unknown as QuizData,
@@ -189,7 +195,7 @@ export function useMultiplayerGame() {
       // Join as player
       const { data: updatedSession, error: updateError } = await supabase
         .from('game_sessions')
-        .update({ player_id: playerId })
+        .update({ player_id: userId })
         .eq('id', sessionData.id)
         .select()
         .single();
@@ -214,7 +220,7 @@ export function useMultiplayerGame() {
     } finally {
       setIsLoading(false);
     }
-  }, [playerId, toast]);
+  }, [userId, isAuthenticated, toast]);
 
   // Update game state (host only)
   const updateGameState = useCallback(async (updates: Partial<GameSession>) => {
@@ -254,11 +260,12 @@ export function useMultiplayerGame() {
 
   return {
     session,
-    playerId,
+    playerId: userId,
     isHost,
     isConnected,
     isLoading,
     error,
+    isAuthenticated,
     createGame,
     joinGame,
     updateGameState,
