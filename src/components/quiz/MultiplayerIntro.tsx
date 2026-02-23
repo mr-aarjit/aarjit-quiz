@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Zap, Users, UserPlus } from "lucide-react";
+import { Loader2, Zap, Users, UserPlus, Monitor } from "lucide-react";
 
 interface MultiplayerIntroProps {
   onCreateGame: (teamAName: string, teamBName: string, topic: string, usePrepared: boolean) => void;
   onJoinGame: () => void;
+  onLocalPlay: (teamAName: string, teamBName: string, topic: string, usePrepared: boolean) => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -25,8 +26,8 @@ const defaultTaglines = [
   "A masterpiece of quiz engineering by Aarjit"
 ];
 
-export function MultiplayerIntro({ onCreateGame, onJoinGame, isLoading, error }: MultiplayerIntroProps) {
-  const [showSetup, setShowSetup] = useState(false);
+export function MultiplayerIntro({ onCreateGame, onJoinGame, onLocalPlay, isLoading, error }: MultiplayerIntroProps) {
+  const [showSetup, setShowSetup] = useState<false | 'online' | 'local'>(false);
   const [teamAName, setTeamAName] = useState("Team Alpha");
   const [teamBName, setTeamBName] = useState("Team Beta");
   const [topic, setTopic] = useState("");
@@ -34,13 +35,16 @@ export function MultiplayerIntro({ onCreateGame, onJoinGame, isLoading, error }:
   const randomIntro = defaultIntroLines[Math.floor(Math.random() * defaultIntroLines.length)];
   const randomTagline = defaultTaglines[Math.floor(Math.random() * defaultTaglines.length)];
 
+  const isLocal = showSetup === 'local';
+  const submitHandler = isLocal ? onLocalPlay : onCreateGame;
+
   const handleCreateCustom = () => {
     if (!topic.trim()) return;
-    onCreateGame(teamAName || "Team Alpha", teamBName || "Team Beta", topic.trim(), false);
+    submitHandler(teamAName || "Team Alpha", teamBName || "Team Beta", topic.trim(), false);
   };
 
   const handleCreatePrepared = () => {
-    onCreateGame(teamAName || "Team Alpha", teamBName || "Team Beta", "Computer & Tech Trends", true);
+    submitHandler(teamAName || "Team Alpha", teamBName || "Team Beta", "Computer & Tech Trends", true);
   };
 
   return (
@@ -84,7 +88,9 @@ export function MultiplayerIntro({ onCreateGame, onJoinGame, isLoading, error }:
 
         {showSetup ? (
           <div className="bg-card/80 backdrop-blur rounded-xl p-4 mb-4 border border-border/50 space-y-4">
-            <h3 className="font-display text-lg font-bold text-foreground">Create New Game</h3>
+            <h3 className="font-display text-lg font-bold text-foreground">
+              {isLocal ? "Local Play — Both Teams" : "Create Online Game"}
+            </h3>
             
             {/* Team Names */}
             <div className="grid grid-cols-2 gap-3">
@@ -171,12 +177,22 @@ export function MultiplayerIntro({ onCreateGame, onJoinGame, isLoading, error }:
         ) : (
           <div className="space-y-3">
             <Button
-              onClick={() => setShowSetup(true)}
+              onClick={() => setShowSetup('local')}
               size="lg"
               className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-primary-foreground font-display font-bold text-lg px-8 py-6 rounded-xl glow-primary"
             >
+              <Monitor className="mr-2 h-5 w-5" />
+              Local Play (Same Computer)
+            </Button>
+
+            <Button
+              onClick={() => setShowSetup('online')}
+              size="lg"
+              variant="outline"
+              className="w-full font-display font-bold text-lg px-8 py-6 rounded-xl"
+            >
               <Users className="mr-2 h-5 w-5" />
-              Create Game
+              Online Multiplayer
             </Button>
 
             <Button

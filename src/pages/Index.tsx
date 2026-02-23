@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 
 type GameState = 'intro' | 'joining' | 'lobby' | 'spinning' | 'playing' | 'finished';
+type PlayMode = 'online' | 'local';
 
 const Index = () => {
   const [gameState, setGameState] = useState<GameState>('intro');
@@ -19,6 +20,7 @@ const Index = () => {
   const [finalScores, setFinalScores] = useState({ teamA: 0, teamB: 0 });
   const [roomInfo, setRoomInfo] = useState<{ roomCode: string; shareUrl: string } | null>(null);
   const [initialRoomCode, setInitialRoomCode] = useState("");
+  const [playMode, setPlayMode] = useState<PlayMode>('online');
 
   const { isAuthenticated, isLoading: authLoading, user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -76,6 +78,20 @@ const Index = () => {
     }
   };
 
+  const handleLocalPlay = async (teamA: string, teamB: string, topic: string, usePrepared: boolean) => {
+    setTeamAName(teamA);
+    setTeamBName(teamB);
+    setPlayMode('local');
+    
+    const result = await createGame(teamA, teamB, topic, usePrepared);
+    if (result) {
+      setRoomInfo(result);
+      // Skip lobby, go straight to spinning
+      updateGameState({ game_phase: 'spinning' });
+      setGameState('spinning');
+    }
+  };
+
   const handleJoinGame = async (roomCode: string) => {
     const success = await joinGame(roomCode);
     if (success) {
@@ -92,7 +108,7 @@ const Index = () => {
   };
 
   const handleSpinComplete = (selectedIndex: number) => {
-    if (session && isHost) {
+    if (session && (isHost || playMode === 'local')) {
       updateGameState({ 
         current_round: selectedIndex,
         game_phase: 'selecting'
@@ -111,6 +127,7 @@ const Index = () => {
     setGameState('intro');
     setRoomInfo(null);
     setFinalScores({ teamA: 0, teamB: 0 });
+    setPlayMode('online');
   };
 
   const handleLeave = async () => {
@@ -147,6 +164,7 @@ const Index = () => {
         <MultiplayerIntro
           onCreateGame={handleCreateGame}
           onJoinGame={() => setGameState('joining')}
+          onLocalPlay={handleLocalPlay}
           isLoading={isLoading}
           error={error}
         />
@@ -184,7 +202,7 @@ const Index = () => {
       {gameState === 'playing' && session && (
         <MultiplayerQuizGame
           session={session}
-          isHost={isHost}
+          isHost={playMode === 'local' ? true : isHost}
           teamAName={teamAName}
           teamBName={teamBName}
           onUpdateState={updateGameState}
