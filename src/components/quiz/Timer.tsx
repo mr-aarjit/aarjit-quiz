@@ -22,12 +22,13 @@ export function Timer({ seconds, isRunning, onTimeUp }: TimerProps) {
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
         const next = prev - 1;
+        if (next > 0) playSound('tick');
         if (next === 10) playSound('timerWarning');
         if (next === 5) playSound('timerCritical');
-        if (next <= 5 && next > 0) playSound('tick');
         if (next <= 0) {
           clearInterval(interval);
-          onTimeUp();
+          // Defer onTimeUp to avoid setState during render
+          setTimeout(() => onTimeUp(), 0);
           return 0;
         }
         return next;
