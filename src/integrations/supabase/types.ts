@@ -14,72 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      game_sessions: {
-        Row: {
-          created_at: string
-          current_question: number | null
-          current_round: number | null
-          current_team: string | null
-          flash_result: string | null
-          game_phase: string | null
-          host_id: string
-          id: string
-          is_passed: boolean | null
-          player_id: string | null
-          questions: Json
-          room_code: string
-          rounds_completed: Json | null
-          selected_questions: Json | null
-          show_explanation: boolean | null
-          team_a_score: number | null
-          team_b_score: number | null
-          topic: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          current_question?: number | null
-          current_round?: number | null
-          current_team?: string | null
-          flash_result?: string | null
-          game_phase?: string | null
-          host_id: string
-          id?: string
-          is_passed?: boolean | null
-          player_id?: string | null
-          questions: Json
-          room_code: string
-          rounds_completed?: Json | null
-          selected_questions?: Json | null
-          show_explanation?: boolean | null
-          team_a_score?: number | null
-          team_b_score?: number | null
-          topic: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          current_question?: number | null
-          current_round?: number | null
-          current_team?: string | null
-          flash_result?: string | null
-          game_phase?: string | null
-          host_id?: string
-          id?: string
-          is_passed?: boolean | null
-          player_id?: string | null
-          questions?: Json
-          room_code?: string
-          rounds_completed?: Json | null
-          selected_questions?: Json | null
-          show_explanation?: boolean | null
-          team_a_score?: number | null
-          team_b_score?: number | null
-          topic?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never
