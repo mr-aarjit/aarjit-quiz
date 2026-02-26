@@ -9,30 +9,23 @@ const SOUNDS = {
   spin: "https://assets.mixkit.co/active_storage/sfx/146/146-preview.mp3",
   select: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3",
   roundComplete: "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3",
-  bgMusic: "https://assets.mixkit.co/active_storage/sfx/2514/2514-preview.mp3"
+  timerWarning: "https://assets.mixkit.co/active_storage/sfx/2569/2569-preview.mp3",
+  timerCritical: "https://assets.mixkit.co/active_storage/sfx/2570/2570-preview.mp3",
 };
 
 export function useSoundEffects() {
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement | null }>({});
-  const bgMusicRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     // Preload sounds
     Object.entries(SOUNDS).forEach(([key, url]) => {
       const audio = new Audio(url);
       audio.preload = "auto";
-      if (key === "bgMusic") {
-        audio.loop = true;
-        audio.volume = 0.15;
-        bgMusicRef.current = audio;
-      } else {
-        audio.volume = 0.5;
-        audioRefs.current[key] = audio;
-      }
+      audio.volume = 0.5;
+      audioRefs.current[key] = audio;
     });
 
     return () => {
-      bgMusicRef.current?.pause();
       Object.values(audioRefs.current).forEach(audio => audio?.pause());
     };
   }, []);
@@ -45,24 +38,5 @@ export function useSoundEffects() {
     }
   }, []);
 
-  const startBgMusic = useCallback(() => {
-    bgMusicRef.current?.play().catch(() => {});
-  }, []);
-
-  const stopBgMusic = useCallback(() => {
-    if (bgMusicRef.current) {
-      bgMusicRef.current.pause();
-      bgMusicRef.current.currentTime = 0;
-    }
-  }, []);
-
-  const toggleBgMusic = useCallback(() => {
-    if (bgMusicRef.current?.paused) {
-      bgMusicRef.current.play().catch(() => {});
-    } else {
-      bgMusicRef.current?.pause();
-    }
-  }, []);
-
-  return { playSound, startBgMusic, stopBgMusic, toggleBgMusic };
+  return { playSound };
 }
