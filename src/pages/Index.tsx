@@ -12,31 +12,31 @@ type GameState = 'intro' | 'spinning' | 'playing' | 'finished';
 
 const Index = () => {
   const [gameState, setGameState] = useState<GameState>('intro');
-  const [teamAName, setTeamAName] = useState("Team Alpha");
-  const [teamBName, setTeamBName] = useState("Team Beta");
-  const [finalScores, setFinalScores] = useState({ teamA: 0, teamB: 0 });
+  const [teamNames, setTeamNames] = useState<string[]>(["Team Alpha", "Team Beta"]);
+  const [finalScores, setFinalScores] = useState<number[]>([0, 0]);
   const [quizData, setQuizData] = useState<QuizData | null>(null);
   const [startingRound, setStartingRound] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [topic, setTopic] = useState("General");
   const { toast } = useToast();
 
-  const handleStartPrepared = (teamA: string, teamB: string) => {
-    setTeamAName(teamA);
-    setTeamBName(teamB);
+  const handleStartPrepared = (names: string[]) => {
+    setTeamNames(names);
     setQuizData(preparedQuizData);
+    setTopic("Computer & Tech Trends");
     setGameState('spinning');
   };
 
-  const handleStart = async (teamA: string, teamB: string, topic: string) => {
-    setTeamAName(teamA);
-    setTeamBName(teamB);
+  const handleStart = async (names: string[], topicInput: string) => {
+    setTeamNames(names);
+    setTopic(topicInput);
     setIsLoading(true);
     setError(null);
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('generate-quiz', {
-        body: { topic }
+        body: { topic: topicInput }
       });
 
       if (fnError) throw new Error(fnError.message);
@@ -60,14 +60,14 @@ const Index = () => {
   };
 
   const handleGameOver = (teamAScore: number, teamBScore: number) => {
-    setFinalScores({ teamA: teamAScore, teamB: teamBScore });
+    setFinalScores([teamAScore, teamBScore]);
     setGameState('finished');
   };
 
   const handleRestart = () => {
     setGameState('intro');
     setQuizData(null);
-    setFinalScores({ teamA: 0, teamB: 0 });
+    setFinalScores([0, 0]);
     setStartingRound(0);
   };
 
@@ -89,8 +89,8 @@ const Index = () => {
       )}
       {gameState === 'playing' && quizData && (
         <QuizGame
-          teamAName={teamAName}
-          teamBName={teamBName}
+          teamAName={teamNames[0]}
+          teamBName={teamNames[1]}
           quizData={quizData}
           startingRound={startingRound}
           onGameOver={handleGameOver}
@@ -98,10 +98,9 @@ const Index = () => {
       )}
       {gameState === 'finished' && (
         <GameOver
-          teamAName={teamAName}
-          teamBName={teamBName}
-          teamAScore={finalScores.teamA}
-          teamBScore={finalScores.teamB}
+          teamNames={teamNames}
+          scores={finalScores}
+          topic={topic}
           onRestart={handleRestart}
         />
       )}

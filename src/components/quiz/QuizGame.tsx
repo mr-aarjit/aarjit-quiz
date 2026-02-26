@@ -9,7 +9,6 @@ import { AnswerFlash } from "./AnswerFlash";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
-import { Volume2, VolumeX } from "lucide-react";
 
 interface QuizGameProps {
   teamAName: string;
@@ -37,15 +36,8 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
   const [hostingTeam, setHostingTeam] = useState<'A' | 'B'>('A');
   const [flashResult, setFlashResult] = useState<boolean | null>(null);
   const [completedRounds, setCompletedRounds] = useState<number[]>([]);
-  const [musicOn, setMusicOn] = useState(true);
   
-  const { playSound, startBgMusic, stopBgMusic, toggleBgMusic } = useSoundEffects();
-  
-  // Start background music on mount
-  useEffect(() => {
-    startBgMusic();
-    return () => stopBgMusic();
-  }, [startBgMusic, stopBgMusic]);
+  const { playSound } = useSoundEffects();
 
   const round = quizData.rounds[currentRound];
   const maxQuestionsPerRound = 6;
@@ -199,11 +191,6 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
       setGamePhase('selecting');
     }
   };
-  
-  const handleMusicToggle = () => {
-    toggleBgMusic();
-    setMusicOn(!musicOn);
-  };
 
   const selectRound = (roundIndex: number) => {
     setCurrentRound(roundIndex);
@@ -236,21 +223,10 @@ export function QuizGame({ teamAName, teamBName, quizData, startingRound, onGame
         {/* Header */}
         <header className="mb-2 flex-shrink-0">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
               <h1 className="font-display text-lg font-bold text-gradient truncate">
                 {quizData.game_title}
               </h1>
-              <button
-                onClick={handleMusicToggle}
-                className="p-1.5 rounded-full hover:bg-muted/50 transition-colors"
-                aria-label="Toggle music"
-              >
-                {musicOn ? (
-                  <Volume2 className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <VolumeX className="h-4 w-4 text-muted-foreground" />
-                )}
-              </button>
             </div>
             <ScoreBoard
               teamAScore={teamAScore}

@@ -80,6 +80,33 @@ export type Database = {
         }
         Relationships: []
       }
+      leaderboard: {
+        Row: {
+          created_at: string
+          id: string
+          num_teams: number
+          score: number
+          team_name: string
+          topic: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          num_teams?: number
+          score?: number
+          team_name: string
+          topic?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          num_teams?: number
+          score?: number
+          team_name?: string
+          topic?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
